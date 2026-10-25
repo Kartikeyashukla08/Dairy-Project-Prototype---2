@@ -94,7 +94,38 @@ function debtPage(){let stockFields=field('Date','date','date',today())+field('R
 function saveDebt(e){e.preventDefault();let f=new FormData(e.target);db.settings.debt=+f.get('debt');db.settings.avgSellPrice=+f.get('price');log('Update debt assumptions',JSON.stringify(db.settings));render()}
 function submitStock(e){e.preventDefault();let f=new FormData(e.target);addRow('stock',{date:f.get('date'),item:f.get('item'),qty:+f.get('qty'),unit:f.get('unit'),cost:+f.get('cost'),supplier:f.get('supplier')},'Stock purchase')}
 function reportsPage(){let weeks=db.milk.reduce((a,x)=>{let d=new Date(x.date+'T00:00:00'),start=new Date(d);start.setDate(d.getDate()-((d.getDay()+6)%7));let k=start.toISOString().slice(0,10);a[k]=a[k]||{qty:0,points:0,count:0};a[k].qty+=+x.qty;a[k].points+=x.qty*x.fat;a[k].count++;return a},{ });let weekRows=Object.entries(weeks).sort((a,b)=>b[0].localeCompare(a[0])).map(([k,v])=>`<tr><td>${k} to ${new Date(new Date(k+'T00:00:00').getTime()+6*86400000).toISOString().slice(0,10)}</td><td>${v.qty.toFixed(1)} L</td><td>${v.points.toFixed(1)}</td><td>${v.count}</td></tr>`);let auditRows=db.audit.slice(0,100).map(x=>`<tr><td>${esc(x.date)}</td><td>${esc(x.user)}</td><td>${esc(x.action)}</td><td style="white-space:normal;max-width:300px">${esc(x.detail)}</td></tr>`);return pageHead('Reports & Audit','Weekly totals, points (fat × quantity), and recent activity history.',`<button class="secondary no-print" onclick="window.print()">Print report</button>`)+panel('Weekly collection totals',table(['Week starting Monday','Total milk','Total points','Entries'],weekRows))+panel('Audit log (recent 100)',table(['Timestamp','User','Action','Details'],auditRows))+panel('Data backup',`<p>Export the browser data as a JSON backup. Keep backups in a secure location; this file contains operational data.</p><button onclick="exportData()">Export JSON backup</button> <button class="secondary" onclick="document.getElementById('importFile').click()">Import backup</button><input id="importFile" type="file" accept=".json,application/json" class="hidden" onchange="importData(event)"><p class="section-note">Import replaces the current browser dataset. Only import files you trust.</p>`)}
-function settingsPage(){return pageHead('Users & Settings','Demo roles and basic configuration.')+panel('Prototype users',table(['Username','Role','Permissions'],[['<tr><td>owner</td><td>Owner</td><td>Full access, rate visibility, farmer management, debt settings</td></tr>','<tr><td>staff</td><td>Collection staff</td><td>Milk entry; rate and amounts hidden in UI</td></tr>','<tr><td>accountant</td><td>Accountant</td><td>Rate visibility, ledger and reports</td></tr>'].flat()))+panel('Important production requirements',`<ul><li>Move authentication to a server-side system; never store passwords in frontend code.</li><li>Enforce role permissions in backend/database policies, not just by hiding UI elements.</li><li>Use a shared database so owner and staff see the same live records from different devices.</li><li>Use server timestamps, immutable audit events, backups, HTTPS, and a recovery plan.</li><li>Add edit/delete approval flows, duplicate-entry checks, and daily close/reconciliation.</li></ul>`)+panel('Reset demo data',`<p class="muted">This clears this browser's prototype data and reloads sample farmers. Export a backup first if needed.</p><button class="danger" onclick="resetData()">Reset local data</button>`)}
+
+function settingsPage() {
+  const users = [
+    '<tr><td>owner</td><td>Owner</td><td>Full access, rates, farmer management and debt settings</td></tr>',
+    '<tr><td>staff</td><td>Collection staff</td><td>Milk entry; rates hidden in the interface</td></tr>',
+    '<tr><td>accountant</td><td>Accountant</td><td>Rates, ledger and financial reports</td></tr>'
+  ];
+
+  return pageHead(
+    'Users & Settings',
+    'Demo roles and basic configuration.'
+  )
+  + panel(
+    'Prototype users',
+    table(['Username', 'Role', 'Permissions'], users)
+  )
+  + panel(
+    'Important production requirements',
+    `<ul>
+      <li>Use server-side authentication and password hashing.</li>
+      <li>Enforce permissions on the backend, not only in the interface.</li>
+      <li>Use a shared database for all devices.</li>
+      <li>Configure backups, HTTPS and audit logging.</li>
+      <li>Add entry correction and approval workflows.</li>
+    </ul>`
+  )
+  + panel(
+    'Reset demo data',
+    `<p class="muted">This clears local prototype data and restores sample data.</p>
+     <button class="danger" onclick="resetData()">Reset local data</button>`
+  );
+}
 function filterTable(inputId,tableId){let q=document.getElementById(inputId).value.toLowerCase();document.querySelectorAll('#'+tableId+' tbody tr').forEach(r=>r.style.display=r.innerText.toLowerCase().includes(q)?'':'none')}
 function exportData(){let blob=new Blob([JSON.stringify(db,null,2)],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='dairydesk-backup-'+today()+'.json';a.click();URL.revokeObjectURL(a.href)}
 function importData(e){let file=e.target.files[0];if(!file)return;let reader=new FileReader();reader.onload=()=>{try{let obj=JSON.parse(reader.result);if(!obj.farmers||!obj.milk)throw Error('Invalid file');if(confirm('Replace current data with this backup?')){db=obj;save();log('Import backup',file.name);render();alert('Backup imported.')}}catch(err){alert('Could not import: '+err.message)}};reader.readAsText(file)}
